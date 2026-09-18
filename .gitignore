@@ -1,0 +1,22 @@
+# IDE
+/.idea/
+/.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dependencies (reproducible from composer.json / package.json, no need to version them)
+/vendor/
+/node_modules/
+
+# Local environment / secrets
+.env
+.env.local
+
+# Logs
+*.log
+
+# Build output
+/dist/
+/build/
