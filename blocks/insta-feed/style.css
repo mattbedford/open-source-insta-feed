@@ -1,0 +1,52 @@
+/*
+ * Instagram Feed block styles.
+ * Plain CSS, no preprocessor, no build step, loaded automatically by
+ * WordPress via the "style" entry in block.json.
+ */
+
+.osif-feed {
+    margin: 2rem 0;
+}
+
+/*
+ * Grid layout: fixed 4 columns, so an 8-photo feed naturally lands as
+ * two neat rows without any row-counting logic needed in PHP or JS.
+ * gap handles spacing between items, doing the "space-between" look
+ * without needing flexbox at all.
+ */
+.osif-feed--grid {
+    display: grid;
+    grid-template-columns: repeat( 4, 1fr );
+    gap: 1rem;
+}
+
+.osif-feed__item {
+    display: block;
+    border: 1px solid var( --paper );
+    overflow: hidden; /* Keeps the image's corners clipped to the border's edges. */
+}
+
+/*
+ * clamp() here gives a height that's never under 300px and never over
+ * 400px, but flexes a little with the column width in between, rather
+ * than a single hard-coded value. object-fit: cover crops the image
+ * to fill that height cleanly, per our earlier decision, instead of
+ * squashing or letterboxing it.
+ */
+.osif-feed__item img {
+    display: block;
+    width: 100%;
+    height: clamp( 300px, 30vw, 400px );
+    object-fit: cover;
+}
+
+/*
+ * "list" layout exists as an attribute option already, but doesn't
+ * have real styling yet. Left as a bare fallback for now, worth
+ * designing properly once the grid's settled and you're happy with it.
+ */
+.osif-feed--list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}

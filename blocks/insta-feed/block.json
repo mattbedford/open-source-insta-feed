@@ -1,0 +1,24 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "osif/insta-feed",
+  "title": "Instagram Feed",
+  "category": "widgets",
+  "description": "Displays cached Instagram posts, pulled and stored by Open Source Insta Feed.",
+  "textdomain": "osif",
+  "editorScript": "file:./index.js",
+  "style": "file:./style.css",
+  "attributes": {
+    "count": {
+      "type": "number",
+      "default": 8
+    },
+    "layout": {
+      "type": "string",
+      "default": "grid"
+    }
+  },
+  "supports": {
+    "html": false
+  }
+}

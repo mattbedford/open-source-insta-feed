@@ -24,10 +24,13 @@ class Plugin {
 			created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
 			permalink varchar(255) NOT NULL,
 			caption TEXT,
+			local_filename varchar(255) DEFAULT NULL,
 			disabled tinyint(1) default 0,
 			PRIMARY KEY  (id),
 			UNIQUE KEY  media_id (media_id)
 		) {$charset};" );
+
+		Cron::activate();
 
 	}
 

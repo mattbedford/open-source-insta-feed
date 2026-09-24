@@ -29,9 +29,19 @@ require_once OSIF_DIR . 'inc/class-plugin.php';
 require_once OSIF_DIR . 'inc/class-admin.php';
 require_once OSIF_DIR . 'inc/class-syncer.php';
 require_once OSIF_DIR . 'inc/class-client.php';
+require_once OSIF_DIR . 'inc/class-block.php';
+require_once OSIF_DIR . 'inc/class-image-cache.php';
+require_once OSIF_DIR . 'inc/class-cron.php';
 
+// Load cron
+osif\Cron::boot();
 
+// Load block
+osif\Block::boot();
+
+// Load admin setup
 add_action( 'admin_init', [ osif\Admin::class, 'boot' ] );
+
 
 /**
  * Lifecycle hooks using Plugin class but not needing constants from above.
