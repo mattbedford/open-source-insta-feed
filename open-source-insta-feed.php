@@ -47,5 +47,6 @@ add_action( 'admin_init', [ osif\Admin::class, 'boot' ] );
  * Lifecycle hooks using Plugin class but not needing constants from above.
  */
 register_activation_hook( __FILE__, [ osif\Plugin::class, 'activate' ] );
+register_deactivation_hook( __FILE__, [ osif\Cron::class, 'deactivate' ] );
 register_uninstall_hook( __FILE__, [ osif\Plugin::class, 'uninstall' ] );
 
