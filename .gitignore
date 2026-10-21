@@ -20,3 +20,5 @@ Thumbs.db
 # Build output
 /dist/
 /build/
+# Packaged plugin archives
+*.zip
