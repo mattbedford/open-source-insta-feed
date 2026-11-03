@@ -42,6 +42,16 @@ class Client {
 
 
 	/**
+	 * Follows a paging link Instagram handed back in a previous response. The link already
+	 * carries the fields, the limit and the access token, so it is requested as it stands.
+	 */
+	public function fetchPage( string $next_url ): array|\WP_Error
+	{
+		return $this->request( $next_url );
+	}
+
+
+	/**
 	 * refreshToken(): array|\WP_Error — builds the /access_token URL with grant_type=ig_refresh_token
 	 *
 	 * @return array|\WP_Error

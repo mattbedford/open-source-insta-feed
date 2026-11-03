@@ -12,7 +12,22 @@ class Syncer {
 	/** What the block shows by default, and how many extra are fetched so hiding some never leaves it short. */
 	public const int DISPLAY_COUNT = 8;
 	public const int BUFFER = 4;
-	private const array FIELDS = [ 'id', 'caption', 'media_type', 'permalink', 'media_url' ];
+
+	/**
+	 * How many pages to walk when the newest posts are mostly videos and carousels that
+	 * cannot be shown. Enough to reach back through a run of them; small enough that a
+	 * sync is never dozens of API calls.
+	 */
+	private const int MAX_PAGES = 5;
+
+	/**
+	 * `children` is asked for so a carousel can be shown by its first picture even when the
+	 * album's own media_url points at a video. `thumbnail_url` is the poster frame of a video.
+	 */
+	private const array FIELDS = [
+		'id', 'caption', 'media_type', 'permalink', 'media_url', 'thumbnail_url',
+		'children{media_type,media_url,thumbnail_url}',
+	];
 
 	public static function getAccessToken(): ?string
 	{
@@ -56,22 +71,13 @@ class Syncer {
 			return [ 'success' => false, 'message' => 'No access token found. Cannot sync.' ];
 		}
 
-		$client = new Client( $token );
-		$result = $client->fetchMedia( self::DISPLAY_COUNT + self::BUFFER, self::FIELDS );
+		$posts = self::collectPosts( new Client( $token ) );
 
-		if ( is_wp_error( $result ) ) {
-			return [ 'success' => false, 'message' => $result->get_error_message() ];
+		if ( is_wp_error( $posts ) ) {
+			return [ 'success' => false, 'message' => $posts->get_error_message() ];
 		}
 
-		$posts = $result['data'] ?? [];
-
-		// Images only. Videos and carousel albums are out of scope, per our decisions.
-		$images = array_filter(
-			$posts,
-			static fn( array $post ): bool => ( $post['media_type'] ?? '' ) === 'IMAGE'
-		);
-
-		$seenIds = self::upsertPosts( $images );
+		$seenIds = self::upsertPosts( $posts );
 		self::pruneRemoved( $seenIds );
 
 		return [
@@ -80,6 +86,97 @@ class Syncer {
 		];
 	}
 
+	/**
+	 * The newest posts that can be shown as a picture, up to the display count plus the buffer.
+	 *
+	 * Instagram pages its results, and a page of the newest posts can be mostly reels and
+	 * carousels. Rather than stop at one page and come up short, keep following the "next"
+	 * link until the quota is filled, the account runs out, or MAX_PAGES is reached.
+	 *
+	 * @return list<array<string,mixed>>|\WP_Error Each post carries an `image_url` picked by imageUrl().
+	 */
+	public static function collectPosts( Client $client ): array|\WP_Error
+	{
+		$wanted  = self::DISPLAY_COUNT + self::BUFFER;
+		$result  = $client->fetchMedia( $wanted, self::FIELDS );
+		$posts   = [];
+		$pages   = 1;
+
+		while ( true ) {
+			if ( is_wp_error( $result ) ) {
+				return $result;
+			}
+
+			foreach ( $result['data'] ?? [] as $post ) {
+				$image = self::imageUrl( $post );
+
+				if ( null === $image ) {
+					continue;
+				}
+
+				$post['image_url'] = $image;
+				$posts[]           = $post;
+
+				if ( count( $posts ) >= $wanted ) {
+					return $posts;
+				}
+			}
+
+			$next = $result['paging']['next'] ?? null;
+
+			if ( null === $next || $pages >= self::MAX_PAGES ) {
+				return $posts;
+			}
+
+			$result = $client->fetchPage( $next );
+			$pages++;
+		}
+	}
+
+	/**
+	 * The still picture that stands for a post on the site, or null if there is none.
+	 *
+	 * A photo is itself. A video or reel is its poster frame, which Instagram supplies as
+	 * thumbnail_url. A carousel is its first slide, which may itself be a video, so the
+	 * children are walked the same way. Nothing on the site ever plays; a click goes to
+	 * Instagram, per our decisions.
+	 */
+	public static function imageUrl( array $post ): ?string
+	{
+		$type = $post['media_type'] ?? '';
+
+		if ( 'IMAGE' === $type ) {
+			return self::nonEmpty( $post['media_url'] ?? null );
+		}
+
+		if ( 'VIDEO' === $type ) {
+			return self::nonEmpty( $post['thumbnail_url'] ?? null );
+		}
+
+		if ( 'CAROUSEL_ALBUM' !== $type ) {
+			return null;
+		}
+
+		foreach ( $post['children']['data'] ?? [] as $child ) {
+			$image = self::imageUrl( $child );
+
+			if ( null !== $image ) {
+				return $image;
+			}
+		}
+
+		return self::nonEmpty( $post['thumbnail_url'] ?? null );
+	}
+
+	private static function nonEmpty( mixed $value ): ?string
+	{
+		return is_string( $value ) && '' !== $value ? $value : null;
+	}
+
+	/**
+	 * @param list<array<string,mixed>> $posts Each with an `image_url`, as collectPosts() returns them.
+	 * @return list<int> The media ids now in the cache.
+	 */
 	private static function upsertPosts( array $posts ): array
 	{
 		global $wpdb;
@@ -96,30 +193,28 @@ class Syncer {
 			$seenIds[] = (int) $mediaId;
 
 			$existing = $wpdb->get_row(
-				$wpdb->prepare( "SELECT id FROM {$table} WHERE media_id = %d", $mediaId )
+				$wpdb->prepare( "SELECT id, local_filename FROM {$table} WHERE media_id = %d", $mediaId )
 			);
 
 			if ( $existing ) {
 				// Deliberately not touching `disabled` here. That's the admin's decision, not sync's.
-				$wpdb->update(
-					$table,
-					[
-						'caption'    => $post['caption'] ?? '',
-						'permalink'  => $post['permalink'] ?? '',
-						'media_type' => $post['media_type'] ?? '',
-					],
-					[ 'media_id' => $mediaId ],
-					[ '%s', '%s', '%s' ],
-					[ '%d' ]
-				);
+				// A row whose download failed last time gets another go, so a blip never leaves a
+				// permanent gap in the feed.
+				$fields  = [
+					'caption'    => $post['caption'] ?? '',
+					'permalink'  => $post['permalink'] ?? '',
+					'media_type' => $post['media_type'] ?? '',
+				];
+				$formats = [ '%s', '%s', '%s' ];
+
+				if ( empty( $existing->local_filename ) ) {
+					$fields['local_filename'] = ImageCache::store( $post['image_url'], (string) $mediaId );
+					$formats[]                = '%s';
+				}
+
+				$wpdb->update( $table, $fields, [ 'media_id' => $mediaId ], $formats, [ '%d' ] );
 
 				continue;
-			}
-
-			$filename = null;
-
-			if ( ! empty( $post['media_url'] ) ) {
-				$filename = ImageCache::store( $post['media_url'], (string) $mediaId );
 			}
 
 			$wpdb->insert(
@@ -129,7 +224,7 @@ class Syncer {
 					'caption'        => $post['caption'] ?? '',
 					'permalink'      => $post['permalink'] ?? '',
 					'media_type'     => $post['media_type'] ?? '',
-					'local_filename' => $filename,
+					'local_filename' => ImageCache::store( $post['image_url'], (string) $mediaId ),
 					'disabled'       => 0,
 				],
 				[ '%d', '%s', '%s', '%s', '%s', '%d' ]
