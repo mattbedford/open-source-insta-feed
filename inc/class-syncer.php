@@ -9,8 +9,9 @@ defined( 'ABSPATH' ) || exit;
 
 class Syncer {
 
-	private const int DISPLAY_COUNT = 8;
-	private const int BUFFER = 4;
+	/** What the block shows by default, and how many extra are fetched so hiding some never leaves it short. */
+	public const int DISPLAY_COUNT = 8;
+	public const int BUFFER = 4;
 	private const array FIELDS = [ 'id', 'caption', 'media_type', 'permalink', 'media_url' ];
 
 	public static function getAccessToken(): ?string

@@ -27,6 +27,7 @@ define( 'OSIF_URL', plugin_dir_url( __FILE__ ) ); // Public URL of the plugin di
  */
 require_once OSIF_DIR . 'inc/class-plugin.php';
 require_once OSIF_DIR . 'inc/class-admin.php';
+require_once OSIF_DIR . 'inc/class-photos.php';
 require_once OSIF_DIR . 'inc/class-syncer.php';
 require_once OSIF_DIR . 'inc/class-client.php';
 require_once OSIF_DIR . 'inc/class-block.php';
@@ -39,8 +40,10 @@ osif\Cron::boot();
 // Load block
 osif\Block::boot();
 
-// Load admin setup
-add_action( 'admin_init', [ osif\Admin::class, 'boot' ] );
+// Load admin setup. Hooks itself onto admin_menu, admin_init and admin_post, so it must run before they fire.
+if ( is_admin() ) {
+	osif\Admin::boot();
+}
 
 
 /**
