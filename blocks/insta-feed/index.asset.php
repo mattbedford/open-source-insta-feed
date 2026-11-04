@@ -10,5 +10,5 @@
 // fine at this scale, no build tool needed to generate it automatically.
 return [
 	'dependencies' => [ 'wp-blocks', 'wp-element', 'wp-block-editor', 'wp-components' ],
-	'version'      => '1.0.0',
+	'version'      => '1.0.1',
 ];
